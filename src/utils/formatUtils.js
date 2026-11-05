@@ -25,3 +25,44 @@ export const CONTRIBUTOR_COLORS = [
   '#0EA5E9', // Sky
 ];
 
+/**
+ * Parses a GitHub URL or "owner/repo" string into { owner, repo }.
+ * Supported formats:
+ * - https://github.com/facebook/react
+ * - http://github.com/facebook/react
+ * - github.com/facebook/react
+ * - facebook/react
+ * - https://github.com/facebook/react.git
+ * - https://github.com/facebook/react/tree/main
+ */
+export function parseGitHubUrl(input) {
+  if (!input || typeof input !== 'string') return null;
+
+  let cleaned = input.trim();
+
+  // Remove protocol
+  cleaned = cleaned.replace(/^(https?:\/\/)?(www\.)?/, '');
+
+  // Remove git ssh prefix if any
+  cleaned = cleaned.replace(/^git@github\.com:/, '');
+
+  // Remove github.com/ prefix
+  cleaned = cleaned.replace(/^github\.com\//, '');
+
+  // Remove leading or trailing slashes
+  cleaned = cleaned.replace(/^\/+|\/+$/g, '');
+
+  const parts = cleaned.split('/').filter(Boolean);
+
+  if (parts.length >= 2) {
+    const owner = parts[0].trim();
+    const repo = parts[1].replace(/\.git$/, '').trim();
+
+    // Basic validity check: owner and repo should not contain invalid characters
+    if (/^[a-zA-Z0-9_\-\.]+$/.test(owner) && /^[a-zA-Z0-9_\-\.]+$/.test(repo)) {
+      return { owner, repo };
+    }
+  }
+
+  return null;
+}

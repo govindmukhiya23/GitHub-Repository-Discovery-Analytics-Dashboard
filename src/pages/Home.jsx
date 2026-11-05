@@ -7,6 +7,7 @@ import {
 } from '../features/repositories/repositorySlice';
 import DateFilter from '../components/repositories/DateFilter';
 import RepositoryList from '../components/repositories/RepositoryList';
+import DirectRepoSearch from '../components/repositories/DirectRepoSearch';
 import TokenDialog from '../components/common/TokenDialog';
 
 export default function Home() {
@@ -95,6 +96,9 @@ export default function Home() {
           Select any repository to analyze its development velocity, commits, and contributor activity.
         </Typography>
       </Box>
+
+      {/* Direct GitHub URL or Owner/Repo Inspector */}
+      <DirectRepoSearch />
 
       {/* Date Filter */}
       <DateFilter

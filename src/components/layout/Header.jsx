@@ -7,22 +7,54 @@ import {
   Container,
   Button,
   IconButton,
-  Chip,
   Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  InputAdornment,
+  Alert,
 } from '@mui/material';
 import TimelineIcon from '@mui/icons-material/Timeline';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import KeyIcon from '@mui/icons-material/Key';
-import { Link as RouterLink } from 'react-router-dom';
+import SearchIcon from '@mui/icons-material/Search';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import TokenDialog from '../common/TokenDialog';
 import { getStoredToken } from '../../services/githubApi';
+import { parseGitHubUrl } from '../../utils/formatUtils';
 
 export default function Header() {
   const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
+  const [searchDialogOpen, setSearchDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchError, setSearchError] = useState('');
   const [hasToken, setHasToken] = useState(Boolean(getStoredToken()));
+  const navigate = useNavigate();
 
   const handleTokenSaved = () => {
     setHasToken(Boolean(getStoredToken()));
+  };
+
+  const handleInspect = (e) => {
+    if (e) e.preventDefault();
+    const raw = searchQuery.trim();
+    if (!raw) {
+      setSearchError('Please enter a GitHub repository URL or owner/repo.');
+      return;
+    }
+
+    const parsed = parseGitHubUrl(raw);
+    if (!parsed) {
+      setSearchError('Invalid format. Enter a full GitHub URL (e.g. https://github.com/facebook/react) or "owner/repo".');
+      return;
+    }
+
+    setSearchError('');
+    setSearchDialogOpen(false);
+    setSearchQuery('');
+    navigate(`/repo/${parsed.owner}/${parsed.repo}`);
   };
 
   return (
@@ -105,9 +137,27 @@ export default function Header() {
               </Box>
             </Box>
 
-            {/* Right Links & Token Button */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <Tooltip title={hasToken ? 'GitHub Token Active (5,000 req/hr)' : 'Configure GitHub Token (increase to 5,000 req/hr)'}>
+            {/* Right Action Buttons */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+              <Tooltip title="Inspect any GitHub repository URL">
+                <Button
+                  variant="outlined"
+                  size="small"
+                  color="inherit"
+                  startIcon={<SearchIcon />}
+                  onClick={() => setSearchDialogOpen(true)}
+                  sx={{
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    borderColor: 'divider',
+                    color: 'text.primary',
+                  }}
+                >
+                  Inspect URL
+                </Button>
+              </Tooltip>
+
+              <Tooltip title={hasToken ? 'GitHub Token Active (5,000 req/hr)' : 'Configure GitHub Token (stored in .env or localStorage)'}>
                 <Button
                   variant={hasToken ? 'outlined' : 'contained'}
                   color={hasToken ? 'success' : 'primary'}
@@ -130,9 +180,9 @@ export default function Header() {
                 variant="text"
                 color="inherit"
                 size="small"
-                sx={{ fontWeight: 600, color: 'text.secondary', display: { xs: 'none', sm: 'inline-flex' } }}
+                sx={{ fontWeight: 600, color: 'text.secondary', display: { xs: 'none', md: 'inline-flex' } }}
               >
-                Explore
+                Trending
               </Button>
 
               <IconButton
@@ -152,6 +202,74 @@ export default function Header() {
         </Container>
       </AppBar>
 
+      {/* Inspect GitHub URL Dialog */}
+      <Dialog
+        open={searchDialogOpen}
+        onClose={() => {
+          setSearchDialogOpen(false);
+          setSearchError('');
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <GitHubIcon color="primary" />
+          Inspect GitHub Repository
+        </DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2" color="text.secondary" paragraph>
+            Enter a GitHub repository URL or <code>owner/repository</code> to analyze its weekly commits, code additions, deletions, and contributor history.
+          </Typography>
+
+          <TextField
+            autoFocus
+            fullWidth
+            size="small"
+            placeholder="https://github.com/facebook/react or facebook/react"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              if (searchError) setSearchError('');
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleInspect();
+              }
+            }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ mb: searchError ? 1.5 : 0 }}
+          />
+
+          {searchError && (
+            <Alert severity="warning" sx={{ mt: 1.5, py: 0.5, fontSize: '0.8rem' }}>
+              {searchError}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button
+            onClick={() => {
+              setSearchDialogOpen(false);
+              setSearchError('');
+            }}
+            color="inherit"
+          >
+            Cancel
+          </Button>
+          <Button variant="contained" color="primary" onClick={handleInspect}>
+            Analyze Repository
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Token Dialog */}
       <TokenDialog
         open={tokenDialogOpen}
         onClose={() => setTokenDialogOpen(false)}

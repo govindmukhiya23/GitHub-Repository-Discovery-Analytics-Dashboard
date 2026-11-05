@@ -1,4 +1,4 @@
-import { all, call, put, takeLatest } from 'redux-saga/effects';
+import { call, put, takeLatest } from 'redux-saga/effects';
 import {
   fetchAnalyticsRequest,
   fetchAnalyticsSuccess,
@@ -21,17 +21,45 @@ function* handleFetchAnalytics(action) {
 
     let repository = repositoryData;
     if (!repository) {
-      repository = yield call(fetchRepositoryDetails, owner, repo);
+      try {
+        repository = yield call(fetchRepositoryDetails, owner, repo);
+      } catch (err) {
+        if (err.isRateLimit) {
+          throw err;
+        }
+      }
     }
 
-    // Fetch commit activity, code frequency, and contributors in parallel
-    const [commitData, codeFreqData, contributorsData] = yield all([
-      call(fetchCommitActivity, owner, repo),
-      call(fetchCodeFrequency, owner, repo),
-      call(fetchContributors, owner, repo),
-    ]);
+    // Safely query stats endpoints without letting one failure break everything
+    let commitData = [];
+    let codeFreqData = [];
+    let contributorsData = [];
+    let rateLimitErr = null;
 
-    const totalActivity = normalizeTotalActivity(commitData, codeFreqData);
+    try {
+      commitData = yield call(fetchCommitActivity, owner, repo);
+    } catch (err) {
+      if (err.isRateLimit) rateLimitErr = err;
+    }
+
+    try {
+      codeFreqData = yield call(fetchCodeFrequency, owner, repo);
+    } catch (err) {
+      if (err.isRateLimit) rateLimitErr = err;
+    }
+
+    try {
+      contributorsData = yield call(fetchContributors, owner, repo);
+    } catch (err) {
+      if (err.isRateLimit) rateLimitErr = err;
+    }
+
+    // If rate limited and no data could be obtained at all, throw the rate limit error
+    if (rateLimitErr && commitData.length === 0 && codeFreqData.length === 0 && contributorsData.length === 0) {
+      throw rateLimitErr;
+    }
+
+    const totalActivity = normalizeTotalActivity(commitData, codeFreqData, contributorsData);
     const { contributors, contributorSeries } = normalizeContributorActivity(
       contributorsData,
       totalActivity

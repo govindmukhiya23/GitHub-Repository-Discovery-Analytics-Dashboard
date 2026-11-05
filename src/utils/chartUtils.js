@@ -4,8 +4,11 @@ import { CONTRIBUTOR_COLORS } from './formatUtils';
 /**
  * Normalizes commit_activity and code_frequency into a unified chronological array:
  * [{ timestamp, dateLabel, commits, additions, deletions }]
+ *
+ * If codeFreqData is empty (common for newly created repos or during 202 processing),
+ * it aggregates additions/deletions directly from contributorsRaw!
  */
-export function normalizeTotalActivity(commitData = [], codeFreqData = []) {
+export function normalizeTotalActivity(commitData = [], codeFreqData = [], contributorsRaw = []) {
   const weekMap = new Map();
 
   // Process commit_activity: [{ week, total, days }]
@@ -24,7 +27,8 @@ export function normalizeTotalActivity(commitData = [], codeFreqData = []) {
   }
 
   // Process code_frequency: [[timestamp, additions, deletions], ...]
-  if (Array.isArray(codeFreqData)) {
+  let hasCodeFreq = false;
+  if (Array.isArray(codeFreqData) && codeFreqData.length > 0) {
     codeFreqData.forEach((entry) => {
       if (Array.isArray(entry) && entry.length >= 3) {
         const [ts, additions, deletions] = entry;
@@ -37,10 +41,33 @@ export function normalizeTotalActivity(commitData = [], codeFreqData = []) {
         };
 
         existing.additions = Math.max(0, additions || 0);
-        // Deletions are returned as negative integers from GitHub API
         existing.deletions = Math.abs(deletions || 0);
 
         weekMap.set(ts, existing);
+        hasCodeFreq = true;
+      }
+    });
+  }
+
+  // Fallback: If code_frequency wasn't ready yet from GitHub, sum from contributors!
+  if (!hasCodeFreq && Array.isArray(contributorsRaw) && contributorsRaw.length > 0) {
+    contributorsRaw.forEach((c) => {
+      if (Array.isArray(c.weeks)) {
+        c.weeks.forEach((w) => {
+          if (w && w.w) {
+            const existing = weekMap.get(w.w) || {
+              timestamp: w.w,
+              dateLabel: formatWeekDate(w.w),
+              commits: 0,
+              additions: 0,
+              deletions: 0,
+            };
+            existing.commits = Math.max(existing.commits, (existing.commits || 0) + (w.c || 0));
+            existing.additions += Math.max(0, w.a || 0);
+            existing.deletions += Math.abs(w.d || 0);
+            weekMap.set(w.w, existing);
+          }
+        });
       }
     });
   }
@@ -54,11 +81,6 @@ export function normalizeTotalActivity(commitData = [], codeFreqData = []) {
 
 /**
  * Normalizes contributor data into aligned weekly entries:
- * Returns: {
- *   contributors: [{ login, avatarUrl, totalCommits, color }],
- *   timeline: [unixTimestamps...],
- *   contributorSeries: [{ login, avatarUrl, color, data: [{ timestamp, commits, additions, deletions }] }]
- * }
  */
 export function normalizeContributorActivity(contributorsRaw = [], masterTimeline = []) {
   if (!Array.isArray(contributorsRaw) || contributorsRaw.length === 0) {
@@ -100,7 +122,6 @@ export function normalizeContributorActivity(contributorsRaw = [], masterTimelin
       color,
     });
 
-    // Create a map of the contributor's weeks for O(1) lookups
     const weeksMap = new Map();
     if (Array.isArray(contributor.weeks)) {
       contributor.weeks.forEach((w) => {
@@ -112,7 +133,6 @@ export function normalizeContributorActivity(contributorsRaw = [], masterTimelin
       });
     }
 
-    // Align against the master timeline, filling missing weeks with 0
     const seriesData = timestamps.map((ts) => {
       const weekData = weeksMap.get(ts) || { commits: 0, additions: 0, deletions: 0 };
       return {
@@ -135,5 +155,91 @@ export function normalizeContributorActivity(contributorsRaw = [], masterTimelin
   return {
     contributors,
     contributorSeries,
+  };
+}
+
+/**
+ * Generates high-fidelity simulated sample analytics for preview/demo mode
+ * when the unauthenticated GitHub API rate limit is exceeded.
+ */
+export function generateSampleAnalytics(repo) {
+  const repoName = repo?.name || 'repository';
+  const ownerLogin = repo?.owner?.login || 'developer';
+  const avatarUrl = repo?.owner?.avatar_url || '';
+
+  const now = Math.floor(Date.now() / 1000);
+  const weekSeconds = 7 * 24 * 3600;
+
+  const numWeeks = 26; // 6 months of weekly activity
+  const timeline = [];
+
+  const devNames = [
+    ownerLogin,
+    'alex-coder',
+    'sarah-dev',
+    'chen-tech',
+    'jordan-contrib',
+  ];
+
+  const contribBase = devNames.slice(0, 4).map((login, idx) => ({
+    login,
+    avatarUrl: idx === 0 ? avatarUrl : `https://avatars.githubusercontent.com/u/${100000 + idx}?v=4`,
+    color: CONTRIBUTOR_COLORS[idx % CONTRIBUTOR_COLORS.length],
+    totalCommits: 0,
+    multiplier: [1.0, 0.6, 0.4, 0.25][idx],
+  }));
+
+  for (let i = numWeeks - 1; i >= 0; i--) {
+    const ts = now - i * weekSeconds;
+    const baseActivity = Math.floor(Math.sin((numWeeks - i) / 3) * 15) + 20 + Math.floor(Math.random() * 10);
+    const commits = Math.max(2, baseActivity);
+    const additions = commits * (120 + Math.floor(Math.random() * 80));
+    const deletions = Math.floor(additions * (0.15 + Math.random() * 0.25));
+
+    timeline.push({
+      timestamp: ts,
+      dateLabel: formatWeekDate(ts),
+      commits,
+      additions,
+      deletions,
+    });
+  }
+
+  const contributorSeries = contribBase.map((contrib) => {
+    let devTotalCommits = 0;
+    const seriesData = timeline.map((week) => {
+      const devCommits = Math.max(0, Math.floor(week.commits * contrib.multiplier * (0.8 + Math.random() * 0.4)));
+      const devAdditions = Math.floor(devCommits * (100 + Math.random() * 60));
+      const devDeletions = Math.floor(devAdditions * (0.15 + Math.random() * 0.2));
+      devTotalCommits += devCommits;
+
+      return {
+        timestamp: week.timestamp,
+        dateLabel: week.dateLabel,
+        commits: devCommits,
+        additions: devAdditions,
+        deletions: devDeletions,
+      };
+    });
+
+    contrib.totalCommits = devTotalCommits;
+
+    return {
+      login: contrib.login,
+      avatarUrl: contrib.avatarUrl,
+      color: contrib.color,
+      data: seriesData,
+    };
+  });
+
+  return {
+    totalActivity: timeline,
+    contributorActivity: contributorSeries,
+    contributors: contribBase.map(({ login, avatarUrl, color, totalCommits }) => ({
+      login,
+      avatarUrl,
+      color,
+      totalCommits,
+    })),
   };
 }

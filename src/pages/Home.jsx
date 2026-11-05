@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Container, Box, Typography } from '@mui/material';
 import { useAppDispatch, useAppSelector } from '../hooks/reduxHooks';
 import {
@@ -7,9 +7,11 @@ import {
 } from '../features/repositories/repositorySlice';
 import DateFilter from '../components/repositories/DateFilter';
 import RepositoryList from '../components/repositories/RepositoryList';
+import TokenDialog from '../components/common/TokenDialog';
 
 export default function Home() {
   const dispatch = useAppDispatch();
+  const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
   const {
     items,
     selectedPeriod,
@@ -111,7 +113,15 @@ export default function Home() {
         error={error}
         onLoadMore={handleLoadMore}
         onRetry={handleRetry}
+        onConfigureToken={() => setTokenDialogOpen(true)}
+      />
+
+      <TokenDialog
+        open={tokenDialogOpen}
+        onClose={() => setTokenDialogOpen(false)}
+        onTokenSaved={handleRetry}
       />
     </Container>
   );
 }
+

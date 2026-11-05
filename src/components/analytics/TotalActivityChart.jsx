@@ -202,3 +202,4 @@ export default function TotalActivityChart({ totalActivity = [], activityType = 
     </Paper>
   );
 }
+

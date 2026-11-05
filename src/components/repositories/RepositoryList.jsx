@@ -14,6 +14,7 @@ export default function RepositoryList({
   totalCount = 0,
   onLoadMore,
   onRetry,
+  onConfigureToken,
 }) {
   const observerRef = useRef(null);
   const sentinelRef = useRef(null);
@@ -65,7 +66,7 @@ export default function RepositoryList({
 
   // Error state for initial load
   if (error && repositories.length === 0) {
-    return <ErrorMessage message={error} onRetry={onRetry} />;
+    return <ErrorMessage message={error} onRetry={onRetry} onConfigureToken={onConfigureToken} />;
   }
 
   // Empty state
@@ -136,3 +137,4 @@ export default function RepositoryList({
     </Box>
   );
 }
+

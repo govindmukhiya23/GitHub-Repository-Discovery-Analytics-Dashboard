@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Container,
   Box,
@@ -7,8 +7,7 @@ import {
   Avatar,
   Chip,
   Paper,
-  IconButton,
-  Tooltip,
+  Alert,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import StarOutlineIcon from '@mui/icons-material/StarOutline';
@@ -21,6 +20,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../hooks/reduxHooks';
 import {
   fetchAnalyticsRequest,
+  fetchAnalyticsSuccess,
   setActivityType,
   toggleContributorVisibility,
   setAllContributorsVisible,
@@ -31,13 +31,18 @@ import TotalActivityChart from '../components/analytics/TotalActivityChart';
 import ContributorChart from '../components/analytics/ContributorChart';
 import Loader from '../components/common/Loader';
 import ErrorMessage from '../components/common/ErrorMessage';
+import TokenDialog from '../components/common/TokenDialog';
 import { formatNumber, formatRelativeDate } from '../utils/dateUtils';
+import { generateSampleAnalytics } from '../utils/chartUtils';
 
 export default function RepositoryDetails() {
   const { owner, repo } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useAppDispatch();
+
+  const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
+  const [isSampleData, setIsSampleData] = useState(false);
 
   const {
     selectedRepository,
@@ -69,6 +74,7 @@ export default function RepositoryDetails() {
   }, [dispatch, owner, repo, passedRepo]);
 
   const handleRetry = () => {
+    setIsSampleData(false);
     if (owner && repo) {
       dispatch(
         fetchAnalyticsRequest({
@@ -78,6 +84,27 @@ export default function RepositoryDetails() {
         })
       );
     }
+  };
+
+  const handleLoadSampleData = () => {
+    const targetRepo = currentRepo || {
+      name: repo,
+      owner: { login: owner },
+      description: 'Trending repository',
+      stargazers_count: 5000,
+      open_issues_count: 10,
+    };
+
+    const sample = generateSampleAnalytics(targetRepo);
+    setIsSampleData(true);
+    dispatch(
+      fetchAnalyticsSuccess({
+        repository: targetRepo,
+        totalActivity: sample.totalActivity,
+        contributorActivity: sample.contributorActivity,
+        contributors: sample.contributors,
+      })
+    );
   };
 
   const currentRepo = selectedRepository || passedRepo;
@@ -260,6 +287,13 @@ export default function RepositoryDetails() {
         </Paper>
       )}
 
+      {/* Sample Data Banner */}
+      {isSampleData && (
+        <Alert severity="info" sx={{ mb: 3 }} onClose={() => setIsSampleData(false)}>
+          <strong>Preview Mode:</strong> Displaying simulated analytics data for this repository because the GitHub API rate limit was reached. You can view all chart features and contributor controls.
+        </Alert>
+      )}
+
       {/* Loading State */}
       {loading && (
         <Loader message="Loading weekly development and contributor activity from GitHub..." />
@@ -271,6 +305,8 @@ export default function RepositoryDetails() {
           title="Could not load analytics"
           message={error}
           onRetry={handleRetry}
+          onConfigureToken={() => setTokenDialogOpen(true)}
+          onLoadSampleData={handleLoadSampleData}
         />
       )}
 
@@ -303,6 +339,13 @@ export default function RepositoryDetails() {
           />
         </Box>
       )}
+
+      {/* Token Dialog */}
+      <TokenDialog
+        open={tokenDialogOpen}
+        onClose={() => setTokenDialogOpen(false)}
+        onTokenSaved={handleRetry}
+      />
     </Container>
   );
 }

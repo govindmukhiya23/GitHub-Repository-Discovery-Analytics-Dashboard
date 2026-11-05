@@ -40,3 +40,4 @@ function* handleFetchRepositories(action) {
 export default function* repositorySaga() {
   yield takeLatest(fetchRepositoriesRequest.type, handleFetchRepositories);
 }
+

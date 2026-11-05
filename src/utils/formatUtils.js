@@ -24,3 +24,4 @@ export const CONTRIBUTOR_COLORS = [
   '#E11D48', // Rose
   '#0EA5E9', // Sky
 ];
+

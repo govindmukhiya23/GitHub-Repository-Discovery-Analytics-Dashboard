@@ -176,3 +176,4 @@ This project is development-ready and can be directly imported into [CodeSandbox
 - **Rate Limit Warnings**: Whenever GitHub's rate limit is reached, the application detects the `x-ratelimit-reset` header and informs the user of the exact reset time.
 - **In-Memory Cache**: Repeated searches and visited repositories are cached in memory to minimize outbound HTTP calls.
 - **Sanitized Links**: All external GitHub links include `rel="noopener noreferrer"`.
+
